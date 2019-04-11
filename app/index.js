@@ -5,7 +5,8 @@ const {
   ActionGroup,
   Action,
   Button,
-  Select
+  Select,
+  SelectOption
 } = require("@dlghq/dialog-bot-sdk");
 const { flatMap } = require("rxjs/operators");
 const axios = require("axios");
@@ -43,18 +44,19 @@ async function run(token, endpoint) {
       const wordsArray = message.content.text.split(" ");
       const user_current = "@" + currentUser.name;
 
-      //set current user
-      if (message.peer.type === "private") {
+      //conditions to check for user mentions.
+      if (
+        message.peer.type === "private" &&
+        message.peer.type === "private" &&
+        message.content.text === "start tracking"
+      ) {
         console.log("userId", message.peer.id);
         const user = await bot.getUser(message.peer.id);
 
         currentUser.id = user.id;
         currentUser.name = user.name;
         console.log("user", currentUser); // user
-      }
-
-      //conditions to check for user mentions.
-      if (
+      } else if (
         message.peer.type === "group" &&
         message.content.text === "User invited to the group"
       ) {
@@ -62,13 +64,8 @@ async function run(token, endpoint) {
         console.log("group added", groupAdded);
         const newGroup = { id: groupAdded.id, name: groupAdded.title };
         addedToGroups.push(newGroup);
-        console.log("groups to track", addedToGroups);
-      } else if (
-        message.content.type === "text" &&
-        message.peer.type === "private" &&
-        message.content.text === "start tracking"
-      ) {
         groupsToTrack.push.apply(groupsToTrack, addedToGroups);
+        console.log("groups to track", addedToGroups);
         console.log("groupsToTrack", groupsToTrack);
       } else if (
         _.includes(wordsArray, user_current) &&
@@ -91,6 +88,45 @@ async function run(token, endpoint) {
       } else if (
         message.content.type === "text" &&
         message.peer.type === "private" &&
+        message.content.text === "schedule"
+      ) {
+        const options = [
+          {
+            label: "Evening",
+            value: "Evening"
+          }
+        ];
+        var selectOptions = [];
+
+        selectOptions.push(
+          SelectOption.create({
+            label: "Morning",
+            value: "Morning"
+          })
+        );
+        selectOptions.push(new SelectOption("Afternoon", "Afternoon"));
+        selectOptions.push(new SelectOption("Evening", "Evening"));
+        console.log("selectOptions2", selectOptions);
+
+        const mid = await bot.sendText(
+          message.peer,
+          "When do you want to schedule the mentions",
+          MessageAttachment.reply(null),
+          ActionGroup.create({
+            actions: [
+              Action.create({
+                id: `30mins`,
+                widget: Select.create({
+                  label: "options",
+                  options: selectOptions
+                })
+              })
+            ]
+          })
+        );
+      } else if (
+        message.content.type === "text" &&
+        message.peer.type === "private" &&
         message.content.text === "mentions"
       ) {
         const ment = bot.sendText(
@@ -102,6 +138,30 @@ async function run(token, endpoint) {
           console.log("abcd", result);
         });
         console.log("MENTIONS", mentions);
+      } else if (
+        message.content.type === "text" &&
+        message.peer.type === "private" &&
+        message.content.text === "subscriptions"
+      ) {
+        console.log("entered here");
+        _.forEach(addedToGroups, async function(group) {
+          const buttonText = containsValue(groupsToTrack, group.id)
+            ? "Stop"
+            : "Start";
+          const mid = await bot.sendText(
+            message.peer,
+            group.name,
+            MessageAttachment.reply(null),
+            ActionGroup.create({
+              actions: [
+                Action.create({
+                  id: `${group.id}`,
+                  widget: Button.create({ label: buttonText })
+                })
+              ]
+            })
+          );
+        });
       }
     })
   );
@@ -109,53 +169,15 @@ async function run(token, endpoint) {
   //creating action handle
   const actionsHandle = bot.subscribeToActions().pipe(
     flatMap(async event => {
-      // if (event.id !== "stop") {
-      //   const projectToPost = await fetchedProjects.filter(
-      //     project => project.name === event.id
-      //   );
-      //   const dataToPost = {
-      //     fields: {
-      //       project: {
-      //         key: projectToPost[0].key
-      //       },
-      //       summary: jiraTaskTitle,
-      //       description:
-      //         "Creating of an issue using project keys and issue type names using the REST API",
-      //       issuetype: {
-      //         name: "Task"
-      //       }
-      //     }
-      //   };
-      //   //creating the issue in JIRA
-      //   const postIssueToJira = await axios({
-      //     url: process.env.JIRA_ISSUE_CREATE,
-      //     method: "post",
-      //     headers: headers,
-      //     data: dataToPost
-      //   });
-      //   // return the response to messenger
-      //   const responseText = formatJiraText(
-      //     postIssueToJira.data,
-      //     projectToPost[0],
-      //     jiraTaskTitle
-      //   );
-      //   messageToReturn.text = responseText;
-      //   const mid = await sendTextToBot(bot, messageToReturn);
-      //   //set the returned issue to addedIssueKey
-      //   addedIssueKey = postIssueToJira.data.id;
-      // } else {
-      //   //code for when stop button is clicked
-      //   messageToReturn.text = "Task addition cancelled by user";
-      //   const mid = await sendTextToBot(bot, messageToReturn);
-      //   fetchedProjects = [];
-      //   messageToReturn = {
-      //     id: "",
-      //     peer: "",
-      //     text: ""
-      //   };
-      //   jiraTaskTitle = "";
-      // }
-      //resetting the variables
+      if (containsValue(groupsToTrack, Number(event.id)) === true) {
+        removeGroupFromTrackableGroups(groupsToTrack, event.id);
+      } else if (containsValue(groupsToTrack, Number(event.id)) === false) {
+        groupToInsert = _.find(addedToGroups, function(o) {
+          return o.id === event.id;
+        });
+        console.log(groupToInsert);
+        groupsToTrack.push(groupToInsert);
+      }
     })
   );
 
@@ -193,6 +215,13 @@ function containsValue(array, value) {
     }
   });
   return valuePresent;
+}
+
+function removeGroupFromTrackableGroups(array, value) {
+  groupIndexToRemove = _.findIndex(array, function(o) {
+    return o.id === value;
+  });
+  array.splice(groupIndexToRemove, 1);
 }
 
 function sendTextToBot(bot, message) {
