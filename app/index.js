@@ -218,11 +218,7 @@ function scheduleMentionsAction(bot, event) {
 
   setTimeout(function() {
     console.log("reached timeout", currentUser.peer, mentions);
-    const scheduledMentions = bot.sendText(
-      currentUser.peer,
-      mentions,
-      MessageAttachment.reply(null)
-    );
+    listMentions(bot);
   }, timeLeft);
 }
 
@@ -281,7 +277,7 @@ function scheduleMentions(bot, message) {
   );
 }
 
-function listMentions(bot, message) {
+function listMentions(bot) {
   console.log("MENTIONS", mentions);
   groups = [];
 
