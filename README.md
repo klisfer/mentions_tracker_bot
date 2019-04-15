@@ -1,4 +1,4 @@
-# mentions_tracker_bot
+# Mentions Tracker Bot
 A bot that doesn't let you miss any of your mentions
 
 You can clone the respository or download the zip file.
