@@ -283,6 +283,30 @@ function scheduleMentions(bot, message) {
 
 function listMentions(bot, message) {
   console.log("MENTIONS", mentions);
+  groups = [];
+
+  mentions.map(mention => {
+    if (!_.includes(groups, mention.group)) {
+      groups.push(mention.group);
+    }
+  });
+  console.log("group", group);
+
+  groups.map(group => {
+    var mentionsInGroup = _.filter(mentions, { group: group });
+    var textToBot = `\n @${group} \n`;
+    mentionsInGroup.map(mention => {
+      textToBot += mention.time + ":" + mention.text + "\n";
+    });
+
+    var messageToSend = {
+      peer: currentUser.peer,
+      text: textToBot
+    };
+
+    sendTextToBot(bot, messageToSend);
+  });
+
   // sendTextToBot(bot, message);
 }
 
