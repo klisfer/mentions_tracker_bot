@@ -1,12 +1,15 @@
 const dotenv = require("dotenv");
 const Bot = require("@dlghq/dialog-bot-sdk");
+const Rpc = require("@dlghq/dialog-bot-sdk");
 const {
   MessageAttachment,
   ActionGroup,
   Action,
   Button,
   Select,
-  SelectOption
+  SelectOption,
+  UUID,
+  OutPeer
 } = require("@dlghq/dialog-bot-sdk");
 const { flatMap } = require("rxjs/operators");
 const axios = require("axios");
@@ -15,8 +18,8 @@ const moment = require("moment");
 var _ = require("lodash");
 const scheduleOptions = [
   {
-    label: "7:00 pm",
-    value: "7:00 pm"
+    label: "12:37 pm",
+    value: "12:37 pm"
   },
   {
     label: "8:00 pm",
@@ -35,12 +38,12 @@ const scheduleOptions = [
     value: "11:00 pm"
   }
 ];
-
 var mentions = [];
 var addedToGroups = [];
 var groupsToTrack = [];
 const currentUser = { name: "", peer: "" };
 var scheduledTime = "";
+var fileLocation = "";
 
 dotenv.config();
 
@@ -59,7 +62,7 @@ const bot = new Bot.default({
   token,
   endpoints: [endpoint]
 });
-console.log("bot", bot);
+
 //fetching bot name
 const self = bot
   .getSelf()
@@ -87,6 +90,8 @@ bot.ready.then(response => {
       console.log("peer", peer);
       getCurrentUser(bot, peer);
     }
+
+    // console.log("response", response.rpc);
   });
 });
 
@@ -117,7 +122,7 @@ const messagesHandle = bot.subscribeToMessages().pipe(
       containsValue(groupsToTrack, message.peer.id) === true
     ) {
       addMentions(message);
-      console.log("mentions", mentions);
+      // console.log("mentions", message);
     } else if (
       message.content.type === "text" &&
       message.peer.type === "private" &&
@@ -209,7 +214,7 @@ function scheduleMentionsAction(bot, event) {
   scheduledTime = moment(schedule, "h:mm a").format("h:mm a");
   const now = moment(Date.now()).format("h:mm a");
   const timeLeft = moment(scheduledTime, "h:mm a").diff(moment(now, "h:mm a"));
-  console.log("scheduledTime", typeof timeLeft);
+  console.log("scheduledTime", timeLeft);
 
   setTimeout(function() {
     console.log("reached timeout", currentUser.peer, mentions);
@@ -236,9 +241,19 @@ async function addBotToTrackableGroups() {
   groupsToTrack.push.apply(groupsToTrack, addedToGroups);
 }
 
-function addMentions(message) {
-  const mention = `${message.date} : ${message.content.text} \n`;
-  console.log("mention", mention);
+async function addMentions(message) {
+  const date = moment(message.date).format("MMMM Do YYYY, h:mm a");
+  var group = "";
+
+  const fetchedGroup = await bot
+    .getGroup(message.peer.id)
+    .then(res => (group = res));
+
+  const mention = {
+    group: group.title,
+    text: message.content.text,
+    time: date
+  };
   mentions.push(mention);
 }
 
@@ -267,14 +282,8 @@ function scheduleMentions(bot, message) {
 }
 
 function listMentions(bot, message) {
-  const ment = bot.sendText(
-    message.peer,
-    mentions,
-    MessageAttachment.reply(message.id)
-  );
-  ment.then(function(result) {
-    console.log("abcd", result);
-  });
+  console.log("MENTIONS", mentions);
+  // sendTextToBot(bot, message);
 }
 
 function listBotGroupSubscriptions(bot, message) {
@@ -306,7 +315,7 @@ function listBotGroupSubscriptions(bot, message) {
 
 function sendTextToBot(bot, message) {
   bot
-    .sendText(message.peer, message.text, MessageAttachment.reply(message.id))
+    .sendText(message.peer, message.text, MessageAttachment.reply(null))
     .then(response => console.log("res", response))
     .catch(err => console.log("err", err));
 }
